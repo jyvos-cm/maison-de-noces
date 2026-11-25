@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maison de Noces – Invités, Tables & Accès</title>
+<meta name="description" content="Gestion des invités, plan de tables et pointage jour J pour mariages">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+:root{--bg:#FAF9F6;--card:#fff;--ink:#2f3237;--muted:#6b6f76;--gold:#C5A059;--goldtx:#8a6a2f;--goldbg:#f5ecd9;--sage:#4f7a63;--sagebg:#e2eee6;--warn:#9a6a14;--warnbg:#f8ecd0;--red:#b4443c;--redbg:#f7e1de;--line:#e8e3d8;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1c1f;--card:#26282c;--ink:#f1eee8;--muted:#a5a8ae;--goldtx:#d9bb85;--goldbg:#3a3326;--sage:#86b39a;--sagebg:#25372c;--warn:#e0b45a;--warnbg:#3d3320;--red:#e58a82;--redbg:#412522;--line:#383b40;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1b1c1f;--card:#26282c;--ink:#f1eee8;--muted:#a5a8ae;--goldtx:#d9bb85;--goldbg:#3a3326;--sage:#86b39a;--sagebg:#25372c;--warn:#e0b45a;--warnbg:#3d3320;--red:#e58a82;--redbg:#412522;--line:#383b40;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;margin:0;-webkit-tap-highlight-color:transparent}
+.serif{font-family:'Cormorant Garamond',Georgia,serif}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px}
+.inp{width:100%;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font-size:16px}
+textarea.inp{padding:12px 14px;min-height:96px}
+.btn{min-height:48px;padding:0 16px;border-radius:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;text-decoration:none;font-size:15px}
+.btn[disabled]{opacity:.5}
+.btn-gold{background:var(--gold);border-color:var(--gold);color:#1f2124}
+.btn-sage{background:var(--sage);border-color:var(--sage);color:#fff}
+.btn-red{color:var(--red)}
+.chip{min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:14px;font-weight:500;white-space:nowrap;cursor:pointer}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.badge{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);z-index:20}
+.nav button,.side button{background:none;border:0;color:var(--muted);font-weight:600;cursor:pointer}
+.nav button{flex:1;min-height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px}
+.side{position:fixed;top:0;bottom:0;left:0;width:232px;background:var(--card);border-right:1px solid var(--line);padding:24px 14px}
+.side button{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:0 14px;border-radius:12px;font-size:15px;margin-bottom:4px}
+.nav button.on,.side button.on{color:var(--goldtx)}.side button.on{background:var(--goldbg)}
+.scroll-x{overflow-x:auto;scrollbar-width:none}.scroll-x::-webkit-scrollbar{display:none}
+.bar{height:10px;border-radius:99px;background:var(--line);overflow:hidden}.bar>div{height:100%;transition:width .4s}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{min-height:40px;padding:0 12px;font-size:13px;font-weight:600;border:0;background:var(--card);color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--ink);color:var(--bg)}
+@media(min-width:1024px){.main{padding-left:248px}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { useState, useEffect, useMemo, useRef } = React;
+const html = htm.bind(React.createElement);
+
+/* ======================= Données & persistance ======================= */
+/* Modèle (JSDoc) :
+   Store     {cur:string, workspaces:Workspace[]}
+   Workspace {id,names,date,ceremony,reception,capacity,tables:Table[],guests:Guest[],log:Entry[]}
+   Table     {id,name,cap}
+   Guest     {id,name,phone,cat,tableId,seats,arrived,arrivedAt,rsvp,note,code}
+   Entry     {id,gid,name,n,at}  (n<0 = annulation) */
+const KEY = 'maison-de-noces.v1';
+const CATS = ['Famille Marié', 'Famille Mariée', 'Amis', 'Collègues', 'VIP / Protocole'];
+const RSVP = ['Confirmé', 'En attente', 'Décliné'];
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const mkCode = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
+const norm = s => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const hhmm = iso => iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+const ago = m => new Date(Date.now() - m * 60000).toISOString();
+
+/* Adaptateur de persistance : remplacez load/save par Firebase (getDoc/setDoc) ou Supabase
+   (supabase.from('weddings').upsert(...)) sans toucher aux composants. */
+const Storage = {
+  load() { try { const v = JSON.parse(localStorage.getItem(KEY)); if (v && v.workspaces) return v; } catch (e) {} return null; },
+  save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); return true; } catch (e) { return false; } }
+};
+
+function demoWorkspace() {
+  const T = [['Table d\'Honneur', 12], ['Table Émeraude', 10], ['Table Saphir', 8], ['Table Ambre', 8]].map(([name, cap]) => ({ id: uid(), name, cap }));
+  const G = [
+    ['Pr. Samuel Etoundi', '+237 655 00 01 03', 4, 0, 2, 'Confirmé', 'Protocole : place d\'honneur', 2, 40],
+    ['Dr Léopold Biya', '+237 699 00 01 08', 4, 0, 2, 'Confirmé', 'Sécurité : arrivée avec escorte', 0],
+    ['Oncle Théodore Abena', '+237 677 00 01 13', 0, 0, 2, 'Confirmé', 'Diabétique, repas adapté', 2, 25],
+    ['Tante Bernadette Owona', '+237 655 00 01 11', 1, 0, 2, 'Confirmé', 'Mobilité réduite', 0],
+    ['Mme Rose Eyenga', '+237 690 00 01 15', 4, 0, 2, 'En attente', '', 0],
+    ['Famille Atangana', '+237 655 00 01 07', 0, 1, 5, 'Confirmé', '3 enfants, chaises hautes', 3, 18],
+    ['Jean-Paul Essomba', '+237 677 00 01 02', 0, 1, 2, 'Confirmé', '', 2, 12],
+    ['Marie-Claire Mballa', '+237 691 00 01 01', 1, 1, 2, 'Confirmé', 'Végétarienne', 0],
+    ['Aïcha Njoya', '+237 699 00 01 04', 2, 2, 1, 'Confirmé', 'Sans porc', 1, 8],
+    ['Rodrigue Tchoumi', '+237 691 00 01 10', 2, 2, 2, 'Confirmé', '', 0],
+    ['Sandrine Fotso', '+237 690 00 01 06', 2, 2, 1, 'En attente', '', 0],
+    ['Christelle Manga', '+237 690 00 01 12', 2, 2, 1, 'Décliné', '', 0],
+    ['Brice Nana', '+237 677 00 01 16', 2, 2, 2, 'Confirmé', '', 0],
+    ['Patrick Ndongo', '+237 677 00 01 05', 3, 3, 2, 'En attente', '', 0],
+    ['Nadège Eyenga', '+237 699 00 01 14', 3, 3, 2, 'Confirmé', '', 0],
+    ['Estelle Kamga', '+237 677 00 01 09', 3, 3, 1, 'Décliné', 'Voyage à l\'étranger', 0],
+    ['Hervé Zang', '+237 691 00 01 17', 3, 3, 1, 'Confirmé', '', 0],
+    ['Ruth Ebelle', '+237 655 00 01 18', 2, -1, 1, 'Confirmé', '', 0],
+    ['Joël Mvondo', '+237 690 00 01 19', 0, -1, 3, 'En attente', '2 enfants', 0],
+    ['Cécile Fouda', '+237 677 00 01 20', 1, -1, 2, 'Confirmé', '', 0]
+  ].map(([name, phone, ci, ti, seats, rsvp, note, arrived = 0, min]) => ({ id: uid(), name, phone, cat: CATS[ci], tableId: ti >= 0 ? T[ti].id : '', seats, rsvp, note, code: mkCode(), arrived, arrivedAt: arrived ? ago(min) : null }));
+  const log = G.filter(g => g.arrived).map(g => ({ id: uid(), gid: g.id, name: g.name, n: g.arrived, at: g.arrivedAt })).sort((a, b) => b.at > a.at ? 1 : -1);
+  return { id: uid(), pin: '1234', names: 'Amina & Thierry', date: '2026-12-19', ceremony: 'Cathédrale Notre-Dame, Yaoundé', reception: 'Hôtel Hilton, Salle Prestige', capacity: 120, tables: T, guests: G, log };
+}
+const blankWs = () => ({ id: uid(), names: 'Notre mariage', date: '', ceremony: '', reception: '', capacity: 100, pin: '1234', tables: [], guests: [], log: [] });
+const initial = () => Storage.load() || (() => { const w = blankWs(); return { cur: w.id, workspaces: [w] }; })();
+
+/* ======================= QR & Pass ======================= */
+function qrInner(text, x, y, size) {
+  const q = qrcode(0, 'M'); q.addData(text); q.make();
+  const n = q.getModuleCount(); let d = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c + 2} ${r + 2}h1v1h-1z`;
+  return `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 ${n + 4} ${n + 4}" shape-rendering="crispEdges"><rect width="${n + 4}" height="${n + 4}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+function passSvg(ws, g, tableName) {
+  const t = (y, s, size, fill, extra = '') => `<text x="180" y="${y}" text-anchor="middle" font-size="${size}" fill="${fill}" ${extra}>${esc(s)}</text>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 520" width="100%"><rect x="2" y="2" width="356" height="516" rx="20" fill="#FAF9F6" stroke="#C5A059" stroke-width="3"/>`
+    + t(56, 'PASS D\'ACCÈS', 13, '#8a6a2f', 'font-family="Arial,sans-serif" letter-spacing="4"')
+    + t(98, ws.names, 28, '#2f3237', 'font-family="Georgia,serif" font-weight="bold"')
+    + `<line x1="110" y1="116" x2="250" y2="116" stroke="#C5A059" stroke-width="1.5"/>`
+    + t(150, g.name, 21, '#2f3237', 'font-family="Arial,sans-serif" font-weight="bold"')
+    + t(178, `${tableName || 'Table à définir'} · ${g.seats} place${g.seats > 1 ? 's' : ''}`, 15, '#555', 'font-family="Arial,sans-serif"')
+    + qrInner('MARIAGE:' + g.code, 70, 200, 220)
+    + t(462, g.code, 24, '#2f3237', 'font-family="monospace" font-weight="bold" letter-spacing="5"')
+    + t(494, `${ws.date ? new Date(ws.date + 'T12:00').toLocaleDateString('fr-FR', { dateStyle: 'long' }) : ''}`, 12, '#777', 'font-family="Arial,sans-serif"')
+    + `</svg>`;
+}
+
+/* ======================= Icônes (Lucide) ======================= */
+const P = {
+  home:'<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  check:'<path d="m16 11 2 2 4-4"/><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
+  table:'<circle cx="12" cy="12" r="6"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>',
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>', minus:'<path d="M5 12h14"/>',
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  trash:'<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+  upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', undo:'<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>',
+  qr:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20v.01M20 20h-3v-3"/>',
+  heart:'<path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z"/>',
+  msg:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  ring:'<circle cx="12" cy="15" r="6"/><path d="m9 6 3-4 3 4"/>',
+  save:'<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
+  camera:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+  lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+};
+const Icon = ({ n, s = 20 }) => html`<svg width=${s} height=${s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" dangerouslySetInnerHTML=${{ __html: P[n] }}></svg>`;
+
+/* ======================= Petits composants ======================= */
+const rs = { 'Confirmé': ['--sagebg', '--sage'], 'En attente': ['--warnbg', '--warn'], 'Décliné': ['--redbg', '--red'] };
+const Badge = ({ rsvp }) => html`<span class="badge" style=${{ background: `var(${rs[rsvp][0]})`, color: `var(${rs[rsvp][1]})` }}>${rsvp}</span>`;
+const Progress = ({ v, max, color }) => { const p = max ? Math.min(100, Math.round(100 * v / max)) : 0; return html`<div class="bar"><div style=${{ width: p + '%', background: `var(${color || '--gold'})` }}></div></div>`; };
+const Empty = ({ text }) => html`<div class="card p-8 text-center" style=${{ color: 'var(--muted)' }}>${text}</div>`;
+const Field = ({ label, children }) => html`<label class="block"><span class="text-sm font-semibold mb-1 block">${label}</span>${children}</label>`;
+const Modal = ({ title, onClose, children }) => html`
+  <div class="fixed inset-0 z-30 flex items-end sm:items-center justify-center" style=${{ background: 'rgba(0,0,0,.5)' }} onClick=${onClose}>
+    <div class="card w-full sm:max-w-lg max-h-[92vh] overflow-y-auto p-5 space-y-4" role="dialog" aria-modal="true" style=${{ borderRadius: '24px 24px 0 0', paddingBottom: 'calc(20px + env(safe-area-inset-bottom,0px))' }} onClick=${e => e.stopPropagation()}>
+      <div class="flex items-center justify-between"><h2 class="serif text-3xl">${title}</h2><button class="btn" style=${{ minHeight: 44, padding: '0 12px' }} onClick=${onClose} aria-label="Fermer"><${Icon} n="x" /></button></div>
+      ${children}
+    </div>
+  </div>`;
+const Kpi = ({ label, value, sub, color }) => html`<div class="card p-4"><div class="text-xs font-semibold uppercase tracking-wide" style=${{ color: 'var(--muted)' }}>${label}</div><div class="serif text-4xl mt-1" style=${{ color: `var(${color || '--ink'})` }}>${value}</div><div class="text-xs mt-1" style=${{ color: 'var(--muted)' }}>${sub || ' '}</div></div>`;
+
+/* ======================= Calculs ======================= */
+const live = g => g.rsvp !== 'Décliné';
+const usedOn = (guests, tid, skip) => guests.filter(g => g.tableId === tid && live(g) && g.id !== skip).reduce((a, g) => a + g.seats, 0);
+const tName = (ws, id) => (ws.tables.find(t => t.id === id) || {}).name || '';
+const batchesOf = g => Array.isArray(g.batches) ? g.batches : (g.arrived > 0 ? [{ n: g.arrived, at: g.arrivedAt }] : []);
+const digitsOf = p => String(p || '').replace(/\D/g, '');
+const maskPhone = p => { const d = digitsOf(p); return d ? '•••• ' + d.slice(-4) : ''; };
+const last4 = p => digitsOf(p).slice(-4);
+/* Numéro WhatsApp : "+" ou "00" = indicatif saisi, conservé tel quel (aucun +237 forcé).
+   Numéro local sans indicatif : seul le format camerounais à 9 chiffres commençant par 6 reçoit 237. */
+function waInfo(p) {
+  const t = String(p || '').replace(/\(0\)/g, '').replace(/[^\d+]/g, '');
+  if (!digitsOf(t)) return { ok: false, hint: 'Numéro manquant' };
+  let d;
+  if (t.startsWith('+')) d = t.slice(1).replace(/\+/g, '');
+  else if (t.startsWith('00')) d = t.slice(2).replace(/\+/g, '');
+  else {
+    d = t.replace(/\+/g, '');
+    if (d.length === 9 && d[0] === '6') d = '237' + d;
+    else if (d.length < 11) return { ok: false, hint: 'Ajoutez l\'indicatif pays (ex. +237…)' };
+  }
+  if (d.length < 8) return { ok: false, hint: 'Numéro trop court' };
+  if (d.length > 15 || d[0] === '0') return { ok: false, hint: 'Numéro invalide' };
+  return { ok: true, digits: d };
+}
+function cleanWs(w) {
+  if (!w || typeof w !== 'object' || !Array.isArray(w.guests) || !Array.isArray(w.tables)) throw new Error('invalid');
+  const tables = w.tables.filter(t => t && t.name).map(t => ({ id: String(t.id || uid()), name: String(t.name), cap: Math.max(1, parseInt(t.cap) || 1) }));
+  const ids = new Set(tables.map(t => t.id));
+  const guests = w.guests.filter(g => g && g.name).map(g => {
+    const seats = Math.max(1, parseInt(g.seats) || 1);
+    const arrived = Math.min(seats, Math.max(0, parseInt(g.arrived) || 0));
+    const b = (Array.isArray(g.batches) ? g.batches : []).filter(x => x && x.n > 0).map(x => ({ n: +x.n, at: String(x.at || '') }));
+    const at = g.arrivedAt ? String(g.arrivedAt) : new Date().toISOString();
+    return { id: String(g.id || uid()), name: String(g.name), phone: String(g.phone || ''), cat: CATS.includes(g.cat) ? g.cat : CATS[2], tableId: ids.has(g.tableId) ? g.tableId : '', seats,
+      rsvp: RSVP.includes(g.rsvp) ? g.rsvp : 'En attente', note: String(g.note || ''), code: String(g.code || mkCode()), arrived, arrivedAt: arrived ? at : null,
+      batches: b.reduce((a, x) => a + x.n, 0) === arrived ? b : (arrived ? [{ n: arrived, at }] : []) };
+  });
+  return { id: String(w.id || uid()), names: String(w.names || 'Mariage importé'), date: String(w.date || ''), ceremony: String(w.ceremony || ''), reception: String(w.reception || ''), capacity: Math.max(1, parseInt(w.capacity) || 100),
+    pin: /^\d{4,8}$/.test(String(w.pin)) ? String(w.pin) : '1234', tables, guests,
+    log: (Array.isArray(w.log) ? w.log : []).filter(e => e && e.name).map(e => ({ id: String(e.id || uid()), gid: String(e.gid || ''), name: String(e.name), n: parseInt(e.n) || 0, at: String(e.at || '') })).slice(0, 500) };
+}
+
+/* ======================= Vues ======================= */
+function Dashboard({ ws, A, org }) {
+  const g = ws.guests, exp = g.filter(live);
+  const seats = exp.reduce((a, x) => a + x.seats, 0), present = g.reduce((a, x) => a + x.arrived, 0);
+  const conf = g.filter(x => x.rsvp === 'Confirmé').length;
+  const by = (list, key) => list.map(k => [k, g.filter(x => x[key] === k).length]);
+  return html`<div class="space-y-5">
+    ${!g.length && html`<div class="card p-5 text-center space-y-3"><div class="serif text-2xl">Bienvenue !</div><p class="text-sm" style=${{ color: 'var(--muted)' }}>Commencez par ajouter vos tables et vos invités (mode Organisateur), ou testez l'application avec des données d'exemple.</p><button class="btn btn-gold" onClick=${A.demo}>Charger les données de démo</button></div>`}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <${Kpi} label="Invitations" value=${g.length} sub=${seats + ' places accordées (hors déclinés)'} />
+      <${Kpi} label="Confirmation RSVP" value=${(g.length ? Math.round(100 * conf / g.length) : 0) + '%'} sub=${conf + ' confirmés'} color="--sage" />
+      <${Kpi} label="Présents sur place" value=${present} sub=${'sur ' + seats + ' places attendues'} color="--goldtx" />
+      <${Kpi} label="Places attribuables" value=${ws.capacity - seats} sub=${'capacité salle ' + ws.capacity + ' − ' + seats + ' accordées'} color=${ws.capacity - seats < 0 ? '--red' : '--ink'} />
+    </div>
+    <div class="grid lg:grid-cols-2 gap-3"><div class="card p-4"><div class="flex justify-between text-sm font-semibold mb-2"><span>Présents sur place / places attendues</span><span>${present} / ${seats}</span></div><${Progress} v=${present} max=${seats} /></div><div class="card p-4"><div class="flex justify-between text-sm font-semibold mb-2"><span>Places accordées / capacité de la salle</span><span>${seats} / ${ws.capacity}</span></div><${Progress} v=${seats} max=${ws.capacity} color=${seats > ws.capacity ? '--red' : '--sage'} /></div></div>
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div class="card p-4 space-y-3"><h3 class="serif text-2xl">Par catégorie</h3>${by(CATS, 'cat').map(([k, n]) => html`<div key=${k}><div class="flex justify-between text-sm mb-1"><span>${k}</span><b>${n}</b></div><${Progress} v=${n} max=${g.length} /></div>`)}</div>
+      <div class="card p-4 space-y-3"><h3 class="serif text-2xl">Par statut</h3>${by(RSVP, 'rsvp').map(([k, n]) => html`<div key=${k}><div class="flex justify-between text-sm mb-1"><span>${k}</span><b>${n}</b></div><${Progress} v=${n} max=${g.length} color=${rs[k][1]} /></div>`)}</div>
+    </div>
+    <${Journal} log=${ws.log} />
+    ${org && html`<div class="card p-4 space-y-3"><h3 class="serif text-2xl">Sauvegarde & restauration</h3><p class="text-sm" style=${{ color: 'var(--muted)' }}>Exportez tout le mariage (configuration, tables, invités, journal) et réimportez-le sur un autre appareil. Un mariage existant avec le même identifiant sera remplacé après confirmation.</p><div class="grid sm:grid-cols-2 gap-3"><button class="btn btn-gold" onClick=${A.backup}><${Icon} n="download" /> Sauvegarde complète (JSON)</button><label class="btn" style=${{ cursor: 'pointer' }}><${Icon} n="upload" /> Restaurer un fichier JSON<input type="file" accept=".json,application/json" class="hidden" onChange=${e => { A.restore(e.target.files[0]); e.target.value = ''; }} /></label></div></div>`}
+  </div>`;
+}
+const Journal = ({ log }) => html`<div class="card p-4"><h3 class="serif text-2xl mb-2">Dernières entrées</h3>
+  ${log.length === 0 ? html`<div class="text-sm" style=${{ color: 'var(--muted)' }}>Aucune entrée enregistrée.</div>` : log.slice(0, 6).map(e => html`<div key=${e.id} class="flex justify-between py-2 border-b text-sm" style=${{ borderColor: 'var(--line)' }}><span class="font-medium">${e.name}</span><span style=${{ color: e.n < 0 ? 'var(--red)' : 'var(--sage)' }}>${e.n < 0 ? 'Annulé' : '+' + e.n} · ${hhmm(e.at)}</span></div>`)}</div>`;
+
+function GuestForm({ ws, guest, onSave, onClose }) {
+  const [f, setF] = useState(guest || { name: '', phone: '', cat: CATS[2], tableId: '', seats: 1, rsvp: 'En attente', note: '', arrived: 0, arrivedAt: null });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const t = ws.tables.find(x => x.id === f.tableId);
+  const over = t && live(f) && usedOn(ws.guests, t.id, f.id) + f.seats > t.cap;
+  const lowSeats = f.seats < (f.arrived || 0);
+  const declArr = f.rsvp === 'Décliné' && (f.arrived || 0) > 0;
+  const wa = waInfo(f.phone);
+  const ok = f.name.trim() && !over && !lowSeats && !declArr;
+  return html`<${Modal} title=${guest ? 'Modifier l\'invité' : 'Nouvel invité'} onClose=${onClose}>
+    <${Field} label="Nom complet *"><input class="inp" value=${f.name} onInput=${e => set('name', e.target.value)} /><//>
+    <${Field} label="Téléphone (avec indicatif pays)"><input class="inp" type="tel" placeholder="+237 6XX XX XX XX" value=${f.phone} onInput=${e => set('phone', e.target.value)} />${f.phone.trim() && !wa.ok && html`<span class="text-xs mt-1 block" style=${{ color: 'var(--warn)' }}>⚠ ${wa.hint} : le bouton WhatsApp sera désactivé.</span>`}<//>
+    <div class="grid grid-cols-2 gap-3">
+      <${Field} label="Catégorie"><select class="inp" value=${f.cat} onChange=${e => set('cat', e.target.value)}>${CATS.map(c => html`<option key=${c}>${c}</option>`)}</select><//>
+      <${Field} label="Statut RSVP"><select class="inp" value=${f.rsvp} onChange=${e => set('rsvp', e.target.value)}>${RSVP.map(c => html`<option key=${c}>${c}</option>`)}</select><//>
+      <${Field} label="Table"><select class="inp" value=${f.tableId} onChange=${e => set('tableId', e.target.value)}><option value="">Non assignée</option>${ws.tables.map(x => html`<option key=${x.id} value=${x.id}>${x.name} (${usedOn(ws.guests, x.id, f.id)}/${x.cap})</option>`)}</select><//>
+      <${Field} label="Places"><input class="inp" type="number" min="1" max="20" value=${f.seats} onInput=${e => set('seats', Math.max(1, parseInt(e.target.value) || 1))} /><//>
+    </div>
+    ${over && html`<div class="text-sm font-semibold rounded-xl p-3" style=${{ background: 'var(--redbg)', color: 'var(--red)' }}>Capacité dépassée pour « ${t.name} » (${t.cap} places). Choisissez une autre table ou réduisez les places.</div>`}
+    ${lowSeats && html`<div class="text-sm font-semibold rounded-xl p-3" style=${{ background: 'var(--redbg)', color: 'var(--red)' }}>${f.arrived} personne(s) sont déjà arrivées : le nombre de places ne peut pas être inférieur à ${f.arrived}. Annulez d'abord une partie du pointage si nécessaire.</div>`}
+    ${declArr && html`<div class="text-sm font-semibold rounded-xl p-3" style=${{ background: 'var(--redbg)', color: 'var(--red)' }}>Des personnes sont déjà arrivées : impossible de passer l'invitation en « Décliné ». Annulez d'abord le pointage.</div>`}
+    <${Field} label="Notes"><textarea class="inp" value=${f.note} onInput=${e => set('note', e.target.value)} placeholder="Régime, enfant, sécurité/VIP…"></textarea><//>
+    <button class="btn btn-gold w-full" disabled=${!ok} onClick=${() => onSave({ ...f, name: f.name.trim(), id: f.id || uid(), code: f.code || mkCode() })}>Enregistrer</button>
+  <//>`;
+}
+
+function ImportModal({ onImport, onClose }) {
+  const [txt, setTxt] = useState('');
+  const parse = s => s.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => l.split(/;|\t|,/).map(x => x.trim())).filter((c, i) => !(i === 0 && /^nom/i.test(norm(c[0]))))
+    .map(c => ({ name: c[0], phone: c[1] || '', cat: CATS.find(k => norm(k).startsWith(norm(c[2] || '#'))) || CATS[2], seats: Math.max(1, parseInt(c[3]) || 1), note: c[4] || '' })).filter(r => r.name);
+  const rows = parse(txt);
+  return html`<${Modal} title="Importer des invités" onClose=${onClose}>
+    <p class="text-sm" style=${{ color: 'var(--muted)' }}>Collez une liste (un invité par ligne) ou chargez un CSV. Colonnes : <b>Nom ; Téléphone ; Catégorie ; Places ; Notes</b> — seul le nom est obligatoire.</p>
+    <textarea class="inp" style=${{ minHeight: 160 }} value=${txt} onInput=${e => setTxt(e.target.value)} placeholder=${'Awa Ndiaye;+237 677 11 22 33;Amis;2\nPaul Biyong'}></textarea>
+    <input type="file" accept=".csv,.txt" class="text-sm" onChange=${e => { const f = e.target.files[0]; if (f) { const r = new FileReader(); r.onload = () => setTxt(String(r.result).replace(/^\ufeff/, '')); r.readAsText(f); } }} />
+    <button class="btn btn-gold w-full" disabled=${!rows.length} onClick=${() => onImport(rows)}>Importer ${rows.length} invité(s)</button>
+  <//>`;
+}
+
+function Guests({ ws, A }) {
+  const [q, setQ] = useState(''); const [cat, setCat] = useState('Toutes');
+  const n = norm(q);
+  const list = ws.guests.filter(g => (cat === 'Toutes' || g.cat === cat) && (!n || [g.name, g.phone, g.code, tName(ws, g.tableId)].some(v => norm(v).includes(n))));
+  return html`<div class="space-y-4">
+    <div class="relative"><span class="absolute left-3 top-3.5" style=${{ color: 'var(--muted)' }}><${Icon} n="search" /></span><input class="inp" style=${{ paddingLeft: 42 }} type="search" placeholder="Nom, téléphone, code, table…" value=${q} onInput=${e => setQ(e.target.value)} /></div>
+    <div class="scroll-x flex gap-2">${['Toutes', ...CATS].map(c => html`<button key=${c} class=${'chip ' + (cat === c ? 'on' : '')} onClick=${() => setCat(c)}>${c}</button>`)}</div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <button class="btn btn-gold" onClick=${() => A.modal({ t: 'guest' })}><${Icon} n="plus" /> Ajouter</button>
+      <button class="btn" onClick=${() => A.modal({ t: 'import' })}><${Icon} n="upload" /> Importer</button>
+      <button class="btn" onClick=${A.exportCSV}><${Icon} n="download" /> Export CSV</button>
+      <button class="btn" onClick=${A.exportXLS}><${Icon} n="download" /> Export Excel</button>
+    </div>
+    <div class="text-sm" style=${{ color: 'var(--muted)' }}>${list.length} invité(s)</div>
+    ${!list.length && html`<${Empty} text="Aucun invité ne correspond. Ajoutez-en un ou importez une liste." />`}
+    <div class="grid gap-3 lg:grid-cols-2">${list.map(g => html`<div key=${g.id} class="card p-4">
+      <div class="flex justify-between gap-2 items-start"><div class="min-w-0"><div class="font-semibold text-lg leading-tight">${g.name}</div><div class="text-sm mt-1" style=${{ color: 'var(--muted)' }}>${g.cat} · ${tName(ws, g.tableId) || 'Sans table'} · ${g.seats} pl.</div></div><${Badge} rsvp=${g.rsvp} /></div>
+      <div class="text-sm mt-1" style=${{ color: 'var(--muted)' }}>${g.phone} · Code <b style=${{ color: 'var(--ink)' }}>${g.code}</b></div>
+      ${g.note && html`<div class="text-sm mt-1" style=${{ color: 'var(--goldtx)' }}>${g.note}</div>`}
+      <div class="flex gap-2 mt-3 flex-wrap">
+        <button class="btn" style=${{ minHeight: 44 }} onClick=${() => A.modal({ t: 'pass', id: g.id })}><${Icon} n="qr" s=${18} /> Pass</button>
+        ${(() => { const w = A.wa(g); return w.ok ? html`<a class="btn" style=${{ minHeight: 44 }} target="_blank" rel="noopener" href=${w.href}><${Icon} n="msg" s=${18} /> WhatsApp</a>` : html`<button class="btn" style=${{ minHeight: 44 }} disabled title=${w.hint}><${Icon} n="msg" s=${18} /> WhatsApp</button><span class="text-xs w-full" style=${{ color: 'var(--warn)' }}>⚠ ${w.hint}</span>`; })()}
+        <button class="btn" style=${{ minHeight: 44 }} onClick=${() => A.modal({ t: 'guest', id: g.id })} aria-label="Modifier"><${Icon} n="edit" s=${18} /></button>
+        <button class="btn btn-red" style=${{ minHeight: 44 }} onClick=${() => A.del(g)} aria-label="Supprimer"><${Icon} n="trash" s=${18} /></button>
+      </div></div>`)}</div></div>`;
+}
+
+function Tables({ ws, A }) {
+  return html`<div class="space-y-4">
+    <button class="btn btn-gold w-full sm:w-auto" onClick=${() => A.modal({ t: 'table' })}><${Icon} n="plus" /> Nouvelle table</button>
+    ${!ws.tables.length && html`<${Empty} text="Aucune table. Créez la première pour organiser le plan de salle." />`}
+    <div class="grid gap-3 lg:grid-cols-2">${ws.tables.map(t => {
+      const used = usedOn(ws.guests, t.id), gs = ws.guests.filter(g => g.tableId === t.id), pct = Math.round(100 * used / t.cap);
+      const col = used > t.cap ? '--red' : pct >= 90 ? '--warn' : '--sage';
+      return html`<div key=${t.id} class="card p-4 space-y-3">
+        <div class="flex justify-between items-center"><h3 class="serif text-2xl">${t.name}</h3><span class="badge" style=${{ background: 'var(--goldbg)', color: 'var(--goldtx)' }}>${used} / ${t.cap}</span></div>
+        <${Progress} v=${used} max=${t.cap} color=${col} />
+        <div class="text-xs font-semibold" style=${{ color: `var(${col})` }}>${used > t.cap ? 'Capacité dépassée !' : pct >= 90 ? 'Presque complète' : t.cap - used + ' place(s) libre(s)'}</div>
+        <div class="text-sm space-y-1">${gs.length ? gs.map(g => html`<div key=${g.id} class="flex justify-between"><span>${g.name}</span><span style=${{ color: 'var(--muted)' }}>${live(g) ? g.seats + ' pl.' : 'décliné'}</span></div>`) : html`<span style=${{ color: 'var(--muted)' }}>Table vide</span>`}</div>
+        <div class="flex gap-2"><button class="btn flex-1" style=${{ minHeight: 44 }} onClick=${() => A.modal({ t: 'table', id: t.id })}><${Icon} n="edit" s=${18} /> Modifier</button><button class="btn btn-red" style=${{ minHeight: 44 }} onClick=${() => A.delTable(t)}><${Icon} n="trash" s=${18} /></button></div>
+      </div>`; })}</div></div>`;
+}
+
+function Checkin({ ws, A, org }) {
+  const [q, setQ] = useState(''); const [f, setF] = useState('Pas encore arrivés');
+  const n = norm(q);
+  const list = ws.guests.filter(g => live(g) && (!n || [g.name, org ? g.phone : last4(g.phone), g.code, tName(ws, g.tableId)].some(v => norm(v).includes(n))) &&
+    (f === 'Tous' || (f === 'Pas encore arrivés' ? g.arrived < g.seats : f === 'Présents' ? g.arrived > 0 : g.cat === CATS[4])))
+    .sort((a, b) => f === 'Présents' ? (b.arrivedAt > a.arrivedAt ? 1 : -1) : norm(a.name).localeCompare(norm(b.name)));
+  return html`<div class="space-y-4">
+    <div class="flex gap-2"><div class="relative flex-1"><span class="absolute left-3 top-3.5" style=${{ color: 'var(--muted)' }}><${Icon} n="search" /></span><input class="inp" style=${{ paddingLeft: 42 }} type="search" placeholder="Nom, tél., code, table…" value=${q} onInput=${e => setQ(e.target.value)} /></div>
+      <button class="btn btn-gold" onClick=${() => A.modal({ t: 'scan' })}><${Icon} n="qr" /> Scan</button></div>
+    <div class="scroll-x flex gap-2">${['Tous', 'Pas encore arrivés', 'Présents', 'VIP'].map(c => html`<button key=${c} class=${'chip ' + (f === c ? 'on' : '')} onClick=${() => setF(c)}>${c}</button>`)}</div>
+    ${!list.length && html`<${Empty} text="Aucun invité dans cette vue." />`}
+    <div class="grid gap-3 lg:grid-cols-2">${list.map(g => {
+      const full = g.arrived >= g.seats;
+      return html`<div key=${g.id} class="card p-4" style=${{ borderWidth: 2, borderColor: full ? 'var(--sage)' : g.arrived ? 'var(--gold)' : 'var(--line)' }}>
+        <div class="flex justify-between items-start gap-2"><div class="min-w-0"><div class="font-bold text-xl leading-tight">${g.name}</div><div class="mt-1" style=${{ color: 'var(--muted)' }}><b style=${{ color: 'var(--ink)' }}>${tName(ws, g.tableId) || 'Sans table'}</b> · ${g.seats} place${g.seats > 1 ? 's' : ''}</div></div>${g.cat === CATS[4] && html`<span class="badge" style=${{ background: 'var(--goldbg)', color: 'var(--goldtx)' }}>VIP</span>`}</div>
+        ${g.phone && html`<div class="text-sm mt-1" style=${{ color: 'var(--muted)' }}>Tél. ${org ? g.phone : maskPhone(g.phone)}</div>`}
+        ${g.note && html`<div class="text-sm mt-2" style=${{ color: 'var(--goldtx)' }}>${g.note}</div>`}
+        ${g.arrived > 0 && html`<div class="rounded-xl px-4 py-3 font-bold mt-3" style=${{ background: full ? 'var(--sagebg)' : 'var(--goldbg)', color: full ? 'var(--sage)' : 'var(--goldtx)' }}>${g.arrived}/${g.seats} arrivé(s) · Arrivé à ${hhmm(g.arrivedAt)}</div>`}
+        <div class="flex gap-2 mt-3">
+          ${!full && html`<button class="btn btn-sage flex-1 text-lg" style=${{ minHeight: 60 }} onClick=${() => g.seats - g.arrived === 1 ? A.checkin(g.id, 1) : A.modal({ t: 'entry', id: g.id })}><${Icon} n="check" s=${24} /> ${g.arrived ? 'Autres arrivées' : 'Valider l\'entrée'}</button>`}
+          ${g.arrived > 0 && html`<button class="btn" style=${{ minHeight: 60 }} onClick=${() => A.modal({ t: 'undo', id: g.id })} aria-label="Annuler"><${Icon} n="undo" /> Annuler</button>`}
+        </div></div>`; })}</div>
+    <${Journal} log=${ws.log} /></div>`;
+}
+
+function WsForm({ ws, onSave, onClose }) {
+  const [f, setF] = useState(ws ? { ...ws, pin: ws.pin || '1234' } : { names: '', date: '', ceremony: '', reception: '', capacity: 100, pin: '1234' });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  return html`<${Modal} title=${ws ? 'Configurer le mariage' : 'Nouveau mariage'} onClose=${onClose}>
+    <${Field} label="Noms des mariés *"><input class="inp" value=${f.names} onInput=${e => set('names', e.target.value)} placeholder="Amina & Thierry" /><//>
+    <div class="grid grid-cols-2 gap-3"><${Field} label="Date"><input class="inp" type="date" value=${f.date} onInput=${e => set('date', e.target.value)} /><//><${Field} label="Capacité totale"><input class="inp" type="number" min="1" value=${f.capacity} onInput=${e => set('capacity', Math.max(1, parseInt(e.target.value) || 1))} /><//></div>
+    <${Field} label="Code PIN Organisateur (4 à 8 chiffres)"><input class="inp" type="text" inputmode="numeric" autocomplete="off" value=${f.pin} onInput=${e => set('pin', e.target.value.replace(/\D/g, '').slice(0, 8))} /><//>
+    <p class="text-xs" style=${{ color: 'var(--muted)' }}>Demandé pour repasser du Mode Hôtesse au Mode Organisateur. Il décourage un usage involontaire mais n'est pas un chiffrement : les données restent sur l'appareil.</p>
+    <${Field} label="Lieu de cérémonie"><input class="inp" value=${f.ceremony} onInput=${e => set('ceremony', e.target.value)} /><//>
+    <${Field} label="Lieu de réception"><input class="inp" value=${f.reception} onInput=${e => set('reception', e.target.value)} /><//>
+    <button class="btn btn-gold w-full" disabled=${!f.names.trim() || !/^\d{4,8}$/.test(f.pin)} onClick=${() => onSave(f)}>Enregistrer</button><//>`;
+}
+
+/* ======================= Application ======================= */
+function App() {
+  const [st, setSt] = useState(initial);
+  const [role, setRole] = useState(() => { try { return localStorage.getItem(KEY + '.role') === 'host' ? 'host' : 'org'; } catch (e) { return 'org'; } });
+  const [savedAt, setSavedAt] = useState(null);
+  const [tab, setTab] = useState('home');
+  const [m, setM] = useState(null);
+  const [conf, setConf] = useState(null);
+  const [toast, setToast] = useState('');
+  const ws = st.workspaces.find(w => w.id === st.cur) || st.workspaces[0];
+  const org = role === 'org';
+
+  useEffect(() => { setSavedAt(Storage.save(st) ? new Date() : false); }, [st]);
+  useEffect(() => { try { localStorage.setItem(KEY + '.role', role); } catch (e) {} }, [role]);
+  useEffect(() => { const h = e => { if (e.key !== 'Escape') return; if (conf) setConf(null); else if (m) setM(null); }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, [conf, m]);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }, [toast]);
+  useEffect(() => { if (!org && (tab === 'guests' || tab === 'tables')) setTab('checkin'); }, [org, tab]);
+
+  const U = fn => setSt(s => ({ ...s, workspaces: s.workspaces.map(w => w.id === s.cur ? fn(w) : w) }));
+  const say = x => setToast(x);
+  const file = (name, data) => { try { const type = name.endsWith('.png') ? 'image/png' : name.endsWith('.json') ? 'application/json' : name.endsWith('.svg') ? 'image/svg+xml' : 'text/csv;charset=utf-8'; const url = URL.createObjectURL(new Blob([data], { type })); const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000); say('Fichier téléchargé : ' + name); } catch (e) { say('Échec du téléchargement'); } };
+  const csv = sep => '\ufeff' + [['Nom', 'Téléphone', 'Catégorie', 'Table', 'Places', 'Arrivés', 'RSVP', 'Notes', 'Code', 'Heure d\'arrivée']].concat(ws.guests.map(g => [g.name, g.phone, g.cat, tName(ws, g.tableId), g.seats, g.arrived, g.rsvp, g.note, g.code, g.arrivedAt ? new Date(g.arrivedAt).toLocaleString('fr-FR') : '']))
+    .map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(sep)).join('\r\n');
+  const slug = ws.names.replace(/\W+/g, '-').toLowerCase();
+
+  const deny = () => say('Action réservée à l\'organisateur');
+  const pngName = g => `pass-${g.name.replace(/\W+/g, '-').toLowerCase()}.png`;
+  const pngBlob = g => new Promise((res, rej) => {
+    const svg = passSvg(ws, g, tName(ws, g.tableId)).replace('width="100%"', 'width="1080" height="1560"');
+    const img = new Image();
+    img.onload = () => { const cv = document.createElement('canvas'); cv.width = 1080; cv.height = 1560; const cx = cv.getContext('2d'); cx.fillStyle = '#FAF9F6'; cx.fillRect(0, 0, 1080, 1560); cx.drawImage(img, 0, 0, 1080, 1560); cv.toBlob(b => b ? res(b) : rej(new Error('png')), 'image/png'); };
+    img.onerror = () => rej(new Error('svg'));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+  const A = {
+    modal: x => { if (!org && ['guest', 'import', 'table', 'ws', 'pass'].includes(x.t)) return deny(); setM(x); },
+    demo: () => { if (!org) return deny(); const d = demoWorkspace(); U(w => ({ ...w, tables: [...w.tables, ...d.tables], guests: [...w.guests, ...d.guests], log: [...d.log, ...w.log] })); say('Données de démo chargées'); },
+    saveGuest: g => { if (!org) return deny(); U(w => ({ ...w, guests: w.guests.some(x => x.id === g.id) ? w.guests.map(x => x.id === g.id ? g : x) : [...w.guests, g] })); setM(null); say('Invité enregistré'); },
+    del: g => !org ? deny() : setConf({ text: `Supprimer ${g.name} ?`, yes: () => { U(w => ({ ...w, guests: w.guests.filter(x => x.id !== g.id) })); say('Invité supprimé'); } }),
+    checkin: (gid, n) => {
+      const at = new Date().toISOString();
+      U(w => {
+        const g = w.guests.find(x => x.id === gid); if (!g) return w;
+        const k = Math.min(n, g.seats - g.arrived); if (k < 1) return w;
+        return { ...w, guests: w.guests.map(x => x.id === gid ? { ...x, arrived: x.arrived + k, arrivedAt: x.arrivedAt || at, batches: [...batchesOf(x), { n: k, at }], rsvp: 'Confirmé' } : x), log: [{ id: uid(), gid, name: g.name, n: k, at }, ...w.log].slice(0, 500) };
+      });
+      setM(null); say('Entrée validée');
+    },
+    undoLast: gid => {
+      U(w => {
+        const g = w.guests.find(x => x.id === gid), b = g ? batchesOf(g) : []; if (!b.length) return w;
+        const l = b[b.length - 1], rest = b.slice(0, -1);
+        return { ...w, guests: w.guests.map(x => x.id === gid ? { ...x, arrived: x.arrived - l.n, batches: rest, arrivedAt: rest.length ? rest[0].at : null } : x), log: [{ id: uid(), gid, name: g.name, n: -l.n, at: new Date().toISOString() }, ...w.log].slice(0, 500) };
+      });
+      setM(null); say('Dernière entrée annulée');
+    },
+    undoAll: gid => {
+      U(w => {
+        const g = w.guests.find(x => x.id === gid); if (!g || !g.arrived) return w;
+        return { ...w, guests: w.guests.map(x => x.id === gid ? { ...x, arrived: 0, batches: [], arrivedAt: null } : x), log: [{ id: uid(), gid, name: g.name, n: -g.arrived, at: new Date().toISOString() }, ...w.log].slice(0, 500) };
+      });
+      setM(null); say('Pointage annulé');
+    },
+    importRows: rows => { if (!org) return deny(); U(w => ({ ...w, guests: [...w.guests, ...rows.map(r => ({ ...r, id: uid(), tableId: '', rsvp: 'En attente', arrived: 0, arrivedAt: null, code: mkCode() }))] })); setM(null); say(rows.length + ' invité(s) importé(s)'); },
+    saveTable: t => { if (!org) return deny(); U(w => ({ ...w, tables: w.tables.some(x => x.id === t.id) ? w.tables.map(x => x.id === t.id ? t : x) : [...w.tables, t] })); setM(null); say('Table enregistrée'); },
+    delTable: t => !org ? deny() : setConf({ text: `Supprimer « ${t.name} » ? Ses invités deviendront non assignés.`, yes: () => U(w => ({ ...w, tables: w.tables.filter(x => x.id !== t.id), guests: w.guests.map(g => g.tableId === t.id ? { ...g, tableId: '' } : g) })) }),
+    exportCSV: () => !org ? deny() : file(`invites-${slug}.csv`, csv(';')),
+    exportXLS: () => !org ? deny() : file(`invites-${slug}.csv`, csv('\t')),
+    wa: g => {
+      const w = waInfo(g.phone); if (!w.ok) return w;
+      const d = ws.date ? new Date(ws.date + 'T12:00').toLocaleDateString('fr-FR', { dateStyle: 'full' }) : '';
+      const msg = `Bonjour ${g.name}, nous avons le plaisir de vous inviter au mariage de ${ws.names}${d ? ' le ' + d : ''}${ws.reception ? ', ' + ws.reception : ''}.\nVotre table : ${tName(ws, g.tableId) || 'à définir'} (${g.seats} place${g.seats > 1 ? 's' : ''}).\nVotre code d'accès : ${g.code}\nNous serons heureux de vous accueillir !`;
+      return { ok: true, href: `https://wa.me/${w.digits}?text=${encodeURIComponent(msg)}` };
+    },
+    passPng: async g => { if (!org) return deny(); try { file(pngName(g), await pngBlob(g)); } catch (e) { say('Échec de la création du PNG'); } },
+    passShare: async g => {
+      if (!org) return deny();
+      try { const b = await pngBlob(g), f = new File([b], pngName(g), { type: 'image/png' }); if (navigator.canShare && navigator.canShare({ files: [f] })) await navigator.share({ files: [f], title: 'Pass d\'accès' }); else file(pngName(g), b); }
+      catch (e) { if (!e || e.name !== 'AbortError') say('Partage impossible'); }
+    },
+    backup: () => !org ? deny() : file(`sauvegarde-${slug}-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ app: 'maison-de-noces', version: 1, exportedAt: new Date().toISOString(), workspace: ws }, null, 2)),
+    restore: f => {
+      if (!org) return deny(); if (!f) return;
+      const r = new FileReader();
+      r.onerror = () => say('Lecture du fichier impossible');
+      r.onload = () => {
+        try {
+          const raw = JSON.parse(String(r.result).replace(/^\ufeff/, ''));
+          const w = cleanWs(raw && raw.workspace ? raw.workspace : raw);
+          const apply = () => setSt(s => ({ cur: w.id, workspaces: s.workspaces.some(x => x.id === w.id) ? s.workspaces.map(x => x.id === w.id ? w : x) : [...s.workspaces, w] }));
+          if (st.workspaces.some(x => x.id === w.id)) setConf({ text: `Un mariage « ${w.names} » avec ce même identifiant existe déjà sur cet appareil. Le remplacer par la sauvegarde ?`, yes: () => { apply(); say('Sauvegarde restaurée'); } });
+          else { apply(); say('Mariage restauré : ' + w.names); }
+        } catch (e) { say('Fichier de sauvegarde invalide'); }
+      };
+      r.readAsText(f);
+    }
+  };
+
+  const tabs = org ? [['home', 'Accueil', 'home'], ['guests', 'Invités', 'users'], ['tables', 'Tables', 'table'], ['checkin', 'Pointage', 'check']] : [['home', 'Accueil', 'home'], ['checkin', 'Pointage', 'check']];
+  const g = m && m.id && ws.guests.find(x => x.id === m.id);
+  const tbl = m && m.t === 'table' && m.id && ws.tables.find(x => x.id === m.id);
+
+  return html`<div>
+    <aside class="side hidden lg:block"><div class="flex items-center gap-2 mb-6" style=${{ color: 'var(--goldtx)' }}><${Icon} n="ring" s=${28} /><span class="serif text-2xl font-bold">Maison de Noces</span></div>
+      ${tabs.map(([k, l, i]) => html`<button key=${k} class=${tab === k ? 'on' : ''} onClick=${() => setTab(k)}><${Icon} n=${i} />${l}</button>`)}</aside>
+    <div class="main"><div class="max-w-5xl mx-auto px-4 pt-4" style=${{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom,0px))' }}>
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div class="seg"><button class=${org ? 'on' : ''} onClick=${() => { if (!org) setM({ t: 'pin' }); }}>Mode Organisateur</button><button class=${!org ? 'on' : ''} onClick=${() => { setRole('host'); setM(null); }}>Mode Hôtesse d'accueil</button></div>
+        <div class="flex gap-2 items-center">
+          <select class="inp" style=${{ minHeight: 40, width: 'auto', maxWidth: 190 }} value=${ws.id} onChange=${e => setSt(s => ({ ...s, cur: e.target.value }))} aria-label="Mariage">${st.workspaces.map(w => html`<option key=${w.id} value=${w.id}>${w.names}</option>`)}</select>
+          ${org && html`<button class="btn" style=${{ minHeight: 40, padding: '0 12px' }} onClick=${() => setM({ t: 'ws', id: ws.id })} aria-label="Configurer"><${Icon} n="edit" s=${18} /></button><button class="btn" style=${{ minHeight: 40, padding: '0 12px' }} onClick=${() => setM({ t: 'ws' })} aria-label="Nouveau mariage"><${Icon} n="plus" s=${18} /></button>`}
+        </div></div>
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs mb-3 rounded-xl px-3 py-2" style=${{ background: savedAt === false ? 'var(--redbg)' : 'var(--sagebg)', color: savedAt === false ? 'var(--red)' : 'var(--sage)' }} role="status"><${Icon} n="save" s=${16} /><b>${savedAt === false ? 'Échec de la sauvegarde locale !' : 'Données enregistrées sur cet appareil' + (savedAt ? ' · ' + hhmm(savedAt) : '')}</b><span style=${{ color: 'var(--muted)' }}>Exportez une sauvegarde JSON régulièrement.</span>${org && html`<button style=${{ background: 'none', border: 0, color: 'inherit', cursor: 'pointer', minHeight: 32, fontWeight: 700, textDecoration: 'underline' }} onClick=${A.backup}>Sauvegarder maintenant</button>`}</div>
+      <header class="mb-5"><h1 class="serif text-4xl leading-none">${ws.names}</h1><div class="text-sm mt-1" style=${{ color: 'var(--muted)' }}>${ws.date && new Date(ws.date + 'T12:00').toLocaleDateString('fr-FR', { dateStyle: 'long' })}${ws.ceremony ? ' · ' + ws.ceremony : ''}${ws.reception ? ' → ' + ws.reception : ''}</div></header>
+      ${tab === 'home' && html`<${Dashboard} ws=${ws} A=${A} org=${org} />`}
+      ${tab === 'guests' && org && html`<${Guests} ws=${ws} A=${A} />`}
+      ${tab === 'tables' && org && html`<${Tables} ws=${ws} A=${A} />`}
+      ${tab === 'checkin' && html`<${Checkin} ws=${ws} A=${A} org=${org} />`}
+    </div></div>
+    <nav class="nav flex lg:hidden">${tabs.map(([k, l, i]) => html`<button key=${k} class=${tab === k ? 'on' : ''} onClick=${() => setTab(k)}><${Icon} n=${i} s=${24} />${l}</button>`)}</nav>
+
+    ${m && m.t === 'guest' && html`<${GuestForm} ws=${ws} guest=${g || null} onSave=${A.saveGuest} onClose=${() => setM(null)} />`}
+    ${m && m.t === 'import' && html`<${ImportModal} onImport=${A.importRows} onClose=${() => setM(null)} />`}
+    ${m && m.t === 'table' && html`<${TableForm} ws=${ws} table=${tbl || null} onSave=${A.saveTable} onClose=${() => setM(null)} />`}
+    ${m && m.t === 'ws' && html`<${WsForm} ws=${m.id ? ws : null} onClose=${() => setM(null)} onSave=${f => { if (m.id) setSt(s => ({ ...s, workspaces: s.workspaces.map(w => w.id === m.id ? { ...w, ...f } : w) })); else { const w = { ...f, id: uid(), tables: [], guests: [], log: [] }; setSt(s => ({ cur: w.id, workspaces: [...s.workspaces, w] })); } setM(null); say('Mariage enregistré'); }} />`}
+    ${m && m.t === 'pass' && g && org && html`<${Modal} title="Pass d'accès" onClose=${() => setM(null)}>
+      <div style=${{ maxWidth: 320, margin: '0 auto' }} dangerouslySetInnerHTML=${{ __html: passSvg(ws, g, tName(ws, g.tableId)) }}></div>
+      <button class="btn btn-gold w-full" onClick=${() => A.passPng(g)}><${Icon} n="download" /> Télécharger le pass (PNG)</button>
+      ${navigator.canShare && html`<button class="btn w-full" onClick=${() => A.passShare(g)}><${Icon} n="msg" /> Partager (WhatsApp…)</button>`}<//>`}
+    ${m && m.t === 'pin' && !org && html`<${PinModal} pin=${ws.pin || '1234'} onOk=${() => { setRole('org'); setM(null); say('Mode Organisateur activé'); }} onClose=${() => setM(null)} />`}
+    ${m && m.t === 'undo' && g && html`<${UndoModal} g=${g} onLast=${() => A.undoLast(g.id)} onAll=${() => A.undoAll(g.id)} onClose=${() => setM(null)} />`}
+    ${m && m.t === 'scan' && html`<${Scan} ws=${ws} onFound=${id => setM({ t: 'entry', id })} onClose=${() => setM(null)} say=${say} />`}
+    ${m && m.t === 'entry' && g && html`<${Entry} g=${g} tn=${tName(ws, g.tableId)} onOk=${n => A.checkin(g.id, n)} onClose=${() => setM(null)} />`}
+    ${conf && html`<div class="fixed inset-0 z-40 flex items-center justify-center p-5" style=${{ background: 'rgba(0,0,0,.55)' }} onClick=${() => setConf(null)}><div class="card p-5 max-w-sm w-full space-y-4" role="alertdialog" aria-modal="true" onClick=${e => e.stopPropagation()}><p class="font-medium">${conf.text}</p><div class="flex gap-3"><button class="btn flex-1" onClick=${() => setConf(null)}>Annuler</button><button class="btn flex-1" style=${{ background: 'var(--red)', borderColor: 'var(--red)', color: '#fff' }} onClick=${() => { conf.yes(); setConf(null); }}>Confirmer</button></div></div></div>`}
+    ${toast && html`<div class="fixed left-1/2 z-50 px-4 py-3 rounded-xl text-sm font-semibold" style=${{ transform: 'translateX(-50%)', bottom: 'calc(80px + env(safe-area-inset-bottom,0px))', background: 'var(--ink)', color: 'var(--bg)' }}>${toast}</div>`}
+  </div>`;
+}
+
+function TableForm({ ws, table, onSave, onClose }) {
+  const [f, setF] = useState(table || { name: '', cap: 10 });
+  const used = table ? usedOn(ws.guests, table.id) : 0;
+  const bad = f.cap < used;
+  return html`<${Modal} title=${table ? 'Modifier la table' : 'Nouvelle table'} onClose=${onClose}>
+    <${Field} label="Nom de la table *"><input class="inp" value=${f.name} onInput=${e => setF({ ...f, name: e.target.value })} placeholder="Table Émeraude" /><//>
+    <${Field} label="Capacité maximale"><input class="inp" type="number" min="1" value=${f.cap} onInput=${e => setF({ ...f, cap: Math.max(1, parseInt(e.target.value) || 1) })} /><//>
+    ${bad && html`<div class="text-sm font-semibold rounded-xl p-3" style=${{ background: 'var(--redbg)', color: 'var(--red)' }}>${used} places sont déjà occupées : la capacité ne peut pas être inférieure.</div>`}
+    <button class="btn btn-gold w-full" disabled=${!f.name.trim() || bad} onClick=${() => onSave({ ...f, name: f.name.trim(), id: f.id || uid() })}>Enregistrer</button><//>`;
+}
+
+function Scan({ ws, onFound, onClose, say }) {
+  const [c, setC] = useState('');
+  const [cam, setCam] = useState('idle'); // idle | starting | on | error
+  const [err, setErr] = useState('');
+  const vid = useRef(null), stream = useRef(null), raf = useRef(0), last = useRef({ v: '', t: 0 }), wsRef = useRef(ws);
+  wsRef.current = ws;
+  const stop = () => { cancelAnimationFrame(raf.current); raf.current = 0; if (stream.current) { stream.current.getTracks().forEach(t => t.stop()); stream.current = null; } };
+  useEffect(() => stop, []);
+  const go = code => {
+    const v = String(code || '').trim().toUpperCase().replace(/^MARIAGE:/, '');
+    const g = wsRef.current.guests.find(x => x.code === v);
+    if (!g) { say('Code inconnu'); return false; }
+    if (!live(g)) { say('Invitation déclinée'); return false; }
+    if (g.arrived >= g.seats) { say('Toutes les places sont déjà pointées'); return false; }
+    stop(); onFound(g.id); return true;
+  };
+  /* Lecteur : API native BarcodeDetector si présente (Chrome/Android), sinon jsQR chargé à la demande (iOS/Safari, Firefox). */
+  const loadJsQR = () => window.jsQR ? Promise.resolve() : new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js'; el.onload = res; el.onerror = () => rej(new Error('lib')); document.head.appendChild(el); });
+  const start = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setCam('error'); setErr('Caméra indisponible sur cet appareil, ou page non sécurisée (HTTPS requis).'); return; }
+    setCam('starting'); setErr('');
+    try {
+      const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      stream.current = st;
+      const v = vid.current; v.srcObject = st; v.setAttribute('playsinline', 'true'); await v.play();
+      let det = null;
+      if ('BarcodeDetector' in window) { try { det = new BarcodeDetector({ formats: ['qr_code'] }); } catch (e) { det = null; } }
+      if (!det) await loadJsQR();
+      setCam('on');
+      const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+      let busy = false, tick = 0;
+      const loop = async t => {
+        if (!stream.current) return;
+        raf.current = requestAnimationFrame(loop);
+        if (busy || t - tick < 180 || v.readyState < 2) return;
+        tick = t; busy = true;
+        try {
+          let val = '';
+          if (det) { const r = await det.detect(v); val = r[0] ? r[0].rawValue : ''; }
+          else { const w = 480, h = Math.round(w * v.videoHeight / v.videoWidth) || 360; cv.width = w; cv.height = h; cx.drawImage(v, 0, 0, w, h); const im = cx.getImageData(0, 0, w, h); const r = window.jsQR(im.data, w, h); val = r ? r.data : ''; }
+          const now = Date.now();
+          if (val && (val !== last.current.v || now - last.current.t > 2500)) { last.current = { v: val, t: now }; go(val); }
+        } catch (e) {}
+        busy = false;
+      };
+      raf.current = requestAnimationFrame(loop);
+    } catch (e) { stop(); setCam('error'); setErr(e && e.name === 'NotAllowedError' ? 'Accès à la caméra refusé. Autorisez-le dans les réglages du navigateur, ou saisissez le code.' : 'Caméra indisponible. Saisissez le code manuellement.'); }
+  };
+  return html`<${Modal} title="Scanner un pass" onClose=${onClose}>
+    <video ref=${vid} muted playsinline style=${{ display: cam === 'on' ? 'block' : 'none', width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 16, background: '#000' }}></video>
+    ${cam !== 'on' && html`<button class="btn btn-gold w-full" disabled=${cam === 'starting'} onClick=${start}><${Icon} n="camera" /> ${cam === 'starting' ? 'Ouverture de la caméra…' : 'Activer la caméra pour scanner'}</button>`}
+    ${cam === 'on' && html`<div class="text-sm text-center" style=${{ color: 'var(--muted)' }}>Placez le QR code du pass devant la caméra.</div><button class="btn w-full" onClick=${() => { stop(); setCam('idle'); }}>Arrêter la caméra</button>`}
+    ${err && html`<div class="text-sm font-semibold rounded-xl p-3" style=${{ background: 'var(--warnbg)', color: 'var(--warn)' }}>${err}</div>`}
+    <p class="text-sm" style=${{ color: 'var(--muted)' }}>Ou saisissez le code du pass :</p>
+    <input class="inp" style=${{ textTransform: 'uppercase', letterSpacing: 4, textAlign: 'center', fontSize: 22 }} value=${c} onInput=${e => setC(e.target.value)} onKeyDown=${e => e.key === 'Enter' && c.trim() && go(c)} placeholder="ABC123" />
+    <button class="btn btn-sage w-full" disabled=${!c.trim()} onClick=${() => go(c)}><${Icon} n="check" /> Valider le code</button>
+    ${cam === 'error' && html`<button class="btn w-full" onClick=${() => { const p = ws.guests.filter(g => live(g) && g.arrived < g.seats); if (!p.length) return say('Tout le monde est déjà arrivé'); go(p[Math.floor(Math.random() * p.length)].code); }}><${Icon} n="qr" /> Simuler un scan</button>`}<//>`;
+}
+
+function PinModal({ pin, onOk, onClose }) {
+  const [v, setV] = useState(''); const [bad, setBad] = useState(false);
+  const submit = () => { if (v === pin) onOk(); else { setBad(true); setV(''); } };
+  return html`<${Modal} title="Mode Organisateur" onClose=${onClose}>
+    <p class="text-sm" style=${{ color: 'var(--muted)' }}>Saisissez le code PIN pour accéder aux fonctions d'organisation.</p>
+    <input class="inp" type="password" inputmode="numeric" autocomplete="off" autoFocus style=${{ textAlign: 'center', fontSize: 26, letterSpacing: 8 }} value=${v} onInput=${e => { setV(e.target.value.replace(/\D/g, '').slice(0, 8)); setBad(false); }} onKeyDown=${e => e.key === 'Enter' && v.length >= 4 && submit()} />
+    ${bad && html`<div class="text-sm font-semibold rounded-xl p-3" style=${{ background: 'var(--redbg)', color: 'var(--red)' }}>Code PIN incorrect.</div>`}
+    <button class="btn btn-gold w-full" disabled=${v.length < 4} onClick=${submit}><${Icon} n="lock" /> Déverrouiller</button><//>`;
+}
+
+function UndoModal({ g, onLast, onAll, onClose }) {
+  const b = batchesOf(g), l = b[b.length - 1];
+  return html`<${Modal} title="Annuler un pointage" onClose=${onClose}>
+    <div class="font-semibold">${g.name} · ${g.arrived}/${g.seats} arrivé(s)</div>
+    ${b.length > 1 && html`<button class="btn w-full" onClick=${onLast}><${Icon} n="undo" /> Annuler la dernière entrée (−${l.n}, ${hhmm(l.at)})</button>`}
+    <button class="btn btn-red w-full" onClick=${onAll}><${Icon} n="trash" /> ${b.length > 1 ? 'Annuler tout le pointage (' + g.arrived + ')' : 'Annuler le pointage (' + g.arrived + ')'}</button>
+    <button class="btn w-full" onClick=${onClose}>Garder tel quel</button><//>`;
+}
+
+function Entry({ g, tn, onOk, onClose }) {
+  const rem = g.seats - g.arrived; const [n, setN] = useState(rem);
+  return html`<${Modal} title=${g.name} onClose=${onClose}>
+    <div style=${{ color: 'var(--muted)' }}>${tn || 'Sans table'} · ${g.seats} place(s) · ${g.arrived} déjà arrivé(s)</div>
+    ${g.note && html`<div class="text-sm" style=${{ color: 'var(--goldtx)' }}>${g.note}</div>`}
+    <div class="text-center text-sm font-semibold">Personnes qui entrent maintenant</div>
+    <div class="flex items-center justify-center gap-6"><button class="btn" style=${{ width: 64, minHeight: 64 }} onClick=${() => setN(Math.max(1, n - 1))}><${Icon} n="minus" s=${28} /></button><span class="serif text-6xl w-16 text-center">${n}</span><button class="btn" style=${{ width: 64, minHeight: 64 }} onClick=${() => setN(Math.min(rem, n + 1))}><${Icon} n="plus" s=${28} /></button></div>
+    <button class="btn btn-sage w-full text-lg" style=${{ minHeight: 60 }} onClick=${() => onOk(n)}><${Icon} n="check" s=${24} /> Valider l'entrée de ${n}</button><//>`;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(html`<${App} />`);
+</script>
+</body>
+</html>
